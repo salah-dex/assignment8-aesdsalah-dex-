@@ -29,7 +29,7 @@ struct aesd_dev
     struct aesd_circular_buffer buffer;   /* The ring buffer to store data */
     char        *temp_buffer;             /* Temporary buffer for data */
     size_t       temp_buffer_size;        /* Size of the temporary buffer */
-    bool         temp_buffer_prefielled;  /* Flag to indicate if the temporary buffer is prefilled */
+    bool         temp_buffer_prefilled;   /* Flag to indicate if the temporary buffer is prefilled */
     struct mutex lock;                    /* Mutex for buffer access */
     struct cdev cdev;                     /* Char device structure   */
 };
