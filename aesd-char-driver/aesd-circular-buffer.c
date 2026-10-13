@@ -102,3 +102,25 @@ void aesd_circular_buffer_init(struct aesd_circular_buffer *buffer)
 {
     memset(buffer,0,sizeof(struct aesd_circular_buffer));
 }
+
+
+size_t aesd_circular_buffer_size(struct aesd_circular_buffer *buffer)
+{
+    size_t total_size = 0;
+    uint8_t index = buffer->out_offs;
+    size_t entries_checked = 0;
+
+    while (entries_checked < AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED) {
+        if (!buffer->full && index == buffer->in_offs) {
+            break;
+        }
+
+        struct aesd_buffer_entry *entry = &buffer->entry[index];
+        total_size += entry->size;
+
+        index = (index + 1) % AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
+        entries_checked++;
+    }
+
+    return total_size;
+}
