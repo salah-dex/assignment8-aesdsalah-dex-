@@ -16,15 +16,32 @@ else
     group="wheel"
 fi
 
-if [ -e ${module}.ko ]; then
-    echo "Loading local built file ${module}.ko"
-    insmod ./$module.ko $* ||  echo "Failed to load module using insmod ${module}.ko" && exit 1
+if [ -e "./${module}.ko" ]; then
+    echo "Loading local module ${module}.ko"
+    if ! insmod "./${module}.ko" "$@"; then
+        echo "Failed to load module using insmod"
+        exit 1
+    fi
 else
-    echo "Local file ${module}.ko not found, attempting to modprobe"
-    modprobe ${module} || echo "Failed to load module using modprobe ${module}" && exit 1
+    echo "Loading module ${module} using modprobe"
+    if ! modprobe "$module"; then
+        echo "Failed to load module using modprobe"
+        exit 1
+    fi
 fi
-major=$(awk "\$2==\"$module\" {print \$1}" /proc/devices)
-rm -f /dev/${device}
-mknod /dev/${device} c $major 0 || echo "Failed to create device /dev/${device}" && exit 1
-chgrp $group /dev/${device}     || echo "Failed to change group of /dev/${device} to $group" && exit 1
-chmod $mode  /dev/${device}     || echo "Failed to change mode of /dev/${device} to $mode" && exit 1
+
+major=$(awk -v module="$module" '$2 == module {print $1}' /proc/devices)
+
+if [ -z "$major" ]; then
+    echo "Error: module $module is not registered in /proc/devices"
+    exit 1
+fi
+
+rm -f "/dev/$device"
+
+if ! mknod "/dev/$device" c "$major" 0; then
+    echo "Failed to create device node /dev/$device"
+    exit 1
+else
+    echo "Created device node /dev/$device with major number $major"
+fi

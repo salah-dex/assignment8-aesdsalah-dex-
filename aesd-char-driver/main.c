@@ -30,7 +30,7 @@ struct aesd_dev aesd_device;
 
 static size_t aesd_circular_buffer_add(const char *data, size_t size);
 static int aesd_circular_buffer_clear(void);
-
+static loff_t aesd_char_adjust_file_offset(struct aesd_dev *dev, struct aesd_seekto *seekto);
 int aesd_open(struct inode *inode, struct file *filp)
 {
     PDEBUG("open");
@@ -134,9 +134,9 @@ ssize_t aesd_write(struct file *filp, const char __user *buf,size_t count, loff_
 
     /* 5. Successful write */
     PDEBUG("successfully processed %zd bytes", retval);
-    FDEBUG("new file position is %lld", *f_pos + retval);
+    PDEBUG("new file position is %lld", *f_pos + retval);
 
-    *f_pos += retval;
+ //   *f_pos += retval;
 
 out_free:
     kfree(kbuf);
@@ -177,9 +177,12 @@ loff_t   aesd_llseek(struct file *filp, loff_t offset, int whence)
     return new_pos;
 }
 
-int aesd_ioctl(struct file *filp, unsigned long request,struct aesd_seekto *seekto)
+long int aesd_ioctl(struct file *filp, unsigned int request,long unsigned int arg)
 {
     struct aesd_dev *dev = filp->private_data;
+    struct aesd_seekto *seekto = (struct aesd_seekto *)arg;
+    struct aesd_seekto seekto_copy;
+    loff_t new_pos = -EINVAL;
     int ret = 0;
 
     PDEBUG("ioctl request %lu", request);
@@ -196,7 +199,6 @@ int aesd_ioctl(struct file *filp, unsigned long request,struct aesd_seekto *seek
                 break;
             }
             /* Validate the seekto parameters */
-            struct aesd_seekto seekto_copy;
             if (copy_from_user(&seekto_copy, seekto, sizeof(struct aesd_seekto))) {
                 PDEBUG("failed to copy seekto structure from userspace");
                 ret = -EFAULT;
@@ -204,7 +206,7 @@ int aesd_ioctl(struct file *filp, unsigned long request,struct aesd_seekto *seek
             }
             else
             {   /* Calculate the new file position */
-                 loff_t new_pos = aesd_char_adjust_file_offset(dev, &seekto_copy);
+                 new_pos = aesd_char_adjust_file_offset(dev, &seekto_copy);
                  if (new_pos < 0) {
                     PDEBUG("invalid seekto parameters: write_cmd=%u, write_cmd_offset=%u", seekto_copy.write_cmd, seekto_copy.write_cmd_offset);
                     ret = -EINVAL;
@@ -252,8 +254,8 @@ struct file_operations aesd_fops = {
     .write =    aesd_write,
     .open =     aesd_open,
     .release =  aesd_release,
-    .llseek =   aesd_llseek,
-    .ioctl =    aesd_ioctl,
+   // .llseek =   aesd_llseek,
+   // .unlocked_ioctl =    aesd_ioctl,
 };
 
 static int aesd_circular_buffer_clear(void)
@@ -306,12 +308,14 @@ static size_t aesd_circular_buffer_add(const char *data, size_t size)
     if (aesd_device.temp_buffer_prefilled) {
         
         char *new_temp_buffer = krealloc(aesd_device.temp_buffer, aesd_device.temp_buffer_size + data_size, GFP_KERNEL);
+
         if (!new_temp_buffer) {
             PDEBUG("failed to allocate memory for temporary buffer");
             return 0;
         }
+
         aesd_device.temp_buffer = new_temp_buffer;
-        
+        /* Append the new data to the temporary buffer */
         memcpy(aesd_device.temp_buffer + (aesd_device.temp_buffer_size*sizeof(char)), data, data_size);
         aesd_device.temp_buffer_size += data_size;
 
