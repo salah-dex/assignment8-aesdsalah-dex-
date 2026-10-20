@@ -24,7 +24,7 @@ struct aesd_buffer_entry
      *   pointer to dynamically allocated command string, const here to indicate that the string should not be modified to avoid memory corruption, if new
      *  memory is needed, a new entry should be created and added to the buffer, the old entry should be removed and freed.
      */
-     const char *buffptr;
+    char *buffptr;
     /**
      * Number of bytes stored in buffptr
      */
