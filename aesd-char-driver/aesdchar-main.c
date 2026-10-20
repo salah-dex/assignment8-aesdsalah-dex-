@@ -52,6 +52,11 @@ int aesd_release(struct inode *inode, struct file *filp)
 ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,loff_t *f_pos)
 {
     ssize_t retval = 0;
+    size_t bytes_to_read = 0;
+    size_t bytes_to_copy = 0;
+    struct aesd_buffer_entry *entry = NULL;
+     size_t entry_offset_byte_rtn = 0;
+
     PDEBUG("read %zu bytes with offset %lld",count,*f_pos);
     struct aesd_dev *dev = filp->private_data;
 
@@ -63,16 +68,16 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,loff_t *f_po
      } 
 
     /* find the entry corresponding to the file position */
-    size_t entry_offset_byte_rtn;
-    struct aesd_buffer_entry *entry = aesd_circular_buffer_find_entry_offset_for_fpos(&dev->buffer, *f_pos, &entry_offset_byte_rtn);
+    
+    entry = aesd_circular_buffer_find_entry_offset_for_fpos(&dev->buffer, *f_pos, &entry_offset_byte_rtn);
     if (entry == NULL) {
         PDEBUG("no entry found for offset %lld", *f_pos);
         retval = 0; // EOF
         goto out_unlock;
     }
     /* calculate the number of bytes to read */
-    size_t bytes_to_read = entry->size - entry_offset_byte_rtn;
-    size_t bytes_to_copy = min(bytes_to_read, count);
+    bytes_to_read = entry->size - entry_offset_byte_rtn;
+    bytes_to_copy = min(bytes_to_read, count);
 
     /* copy the data to userspace */
     if (copy_to_user(buf, entry->buffptr + entry_offset_byte_rtn, bytes_to_copy)) {
@@ -82,8 +87,8 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,loff_t *f_po
     }
     /* update the file position */
     *f_pos += bytes_to_copy;
-    PDEBUG("read %zu bytes from entry with size %zu at offset %zu", bytes_to_copy, entry->size, entry_offset_byte_rtn);
-    PDEBUG("new file position is %lld", *f_pos);
+//    PDEBUG("read %zu bytes from entry with size %zu at offset %zu", bytes_to_copy, entry->size, entry_offset_byte_rtn);
+  //    PDEBUG("new file position is %lld", *f_pos);
     retval = bytes_to_copy;
 
     out_unlock:
@@ -133,8 +138,8 @@ ssize_t aesd_write(struct file *filp, const char __user *buf,size_t count, loff_
     }
 
     /* 5. Successful write */
-    PDEBUG("successfully processed %zd bytes", retval);
-    PDEBUG("new file position is %d", *f_pos + retval);
+//    PDEBUG("successfully processed %zd bytes", retval);
+    //    PDEBUG("new file position is %d", *f_pos + retval);
    *f_pos += retval;
 
 out_free:
@@ -148,14 +153,18 @@ out_unlock:
 
 loff_t   aesd_llseek(struct file *filp, loff_t offset, int whence)
 {
-    struct aesd_dev *dev = filp->private_data;
-    size_t buffer_size = aesd_circular_buffer_size(&dev->buffer);
+    struct aesd_dev *dev = NULL;
+    size_t buffer_size = 0;
     loff_t  new_pos = 0;
+    
+    dev = filp->private_data;
+    buffer_size = aesd_circular_buffer_size(&dev->buffer);
+    
 
-    PDEBUG("llseek from %lld to %lld", filp->f_pos, offset);
+    //    PDEBUG("llseek from %lld to %lld", filp->f_pos, offset);
 
     if (mutex_lock_interruptible(&dev->lock)) {
-        PDEBUG("llseek operation interrupted by signal");
+        //    PDEBUG("llseek operation interrupted by signal");
         return -ERESTARTSYS;
     }
 
@@ -164,11 +173,11 @@ loff_t   aesd_llseek(struct file *filp, loff_t offset, int whence)
 
     if (new_pos < 0 || new_pos > buffer_size) {
         mutex_unlock(&dev->lock);
-        PDEBUG("llseek to invalid position %lld", new_pos);
+        //    PDEBUG("llseek to invalid position %lld", new_pos);
         return -EINVAL;
     }
 
-    PDEBUG("llseek to new position %lld", new_pos);
+    //    PDEBUG("llseek to new position %lld", new_pos);
 
     filp->f_pos = new_pos;
 
@@ -213,7 +222,7 @@ long int aesd_ioctl(struct file *filp, unsigned int request,long unsigned int ar
                  }
             }
             /* Set the new file position */
-            PDEBUG("ioctl set file position to %lld", filp->f_pos);
+            //    PDEBUG("ioctl set file position to %lld", filp->f_pos);
             filp->f_pos = new_pos;
             break;
         default:
@@ -305,7 +314,8 @@ static size_t aesd_circular_buffer_add(const char *data, size_t size)
     /*0: append new data to temporary buffer */
 
     /*1: check for newline character */
-    for (size_t i = 0; i < size; i++) {
+    size_t i;
+    for (i = 0; i < size; i++) {
         if (data[i] == '\n') {
             /* process the entry up to the newline  & ignore data after newline */
              newline_found = true;
@@ -320,7 +330,7 @@ static size_t aesd_circular_buffer_add(const char *data, size_t size)
         char *new_temp_buffer = krealloc(aesd_device.temp_buffer, aesd_device.temp_buffer_size + data_size, GFP_KERNEL);
 
         if (!new_temp_buffer) {
-            PDEBUG("failed to allocate memory for temporary buffer");
+//            PDEBUG("failed to allocate memory for temporary buffer");
             return 0;
         }
 
@@ -332,7 +342,7 @@ static size_t aesd_circular_buffer_add(const char *data, size_t size)
     } else {
         aesd_device.temp_buffer = kmalloc(data_size, GFP_KERNEL);
         if (!aesd_device.temp_buffer) {
-            PDEBUG("failed to allocate memory for temporary buffer");
+//            PDEBUG("failed to allocate memory for temporary buffer");
             return 0;
         }
         memcpy(aesd_device.temp_buffer, data, data_size);
@@ -353,7 +363,7 @@ static size_t aesd_circular_buffer_add(const char *data, size_t size)
             aesd_device.temp_buffer = NULL;
             aesd_device.temp_buffer_size = 0;
             aesd_device.temp_buffer_prefilled = false;
-            PDEBUG("failed to allocate memory for new entry");
+            //            PDEBUG("failed to allocate memory for new entry");
             return 0;
         }
         memcpy(new_entry.buffptr, aesd_device.temp_buffer, new_entry.size);
